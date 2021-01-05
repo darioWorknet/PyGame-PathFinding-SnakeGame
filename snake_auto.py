@@ -1,5 +1,7 @@
 import pygame
 import random
+from queue import PriorityQueue
+
 
 class Block:
 
@@ -41,7 +43,7 @@ class Block:
 
 WIDTH = 600
 HEIGHT = 600
-ROWS = 15
+ROWS = 6
 SIZE = WIDTH // ROWS
 
 GRID_COLOR = (200, 200, 200)
@@ -80,7 +82,40 @@ def listen_key_events(blocks, snake):
             elif event.key == pygame.K_RETURN: # ENTER
                 restart = True
 
+            elif event.key == pygame.K_SPACE: # SPACE
+                food = get_food()
+                head = snake[0]
+                find_path (blocks, head, food)
+
     return run, restart
+
+
+def get_food(blocks):
+    for row in blocks:
+        for block in row:
+            if block.kind == 'food':
+                return block
+
+
+def find_path(blocks, start, end):
+    borders = list()
+    visited = list()
+    borders.append(start)
+    solved = False
+    while not solved:
+        current = borders.pop(0)
+        if current == end:
+            solved = True
+        else:
+            visited.append(current)
+            childs = current.get_children()
+            childs = [child for child in childs if child.cost < border[0].cost]
+            for child in childs:
+                borders.append(child)
+            
+
+
+         
 
 def create_blocks(rows, size):
     blocks = list()
@@ -92,10 +127,12 @@ def create_blocks(rows, size):
 
     return blocks
 
+
 def draw_blocks(win, blocks):
     for row in blocks:
         for brick in row:
             brick.show(win)
+
 
 def create_snake(blocks):
     snake = list()
@@ -117,13 +154,6 @@ def snake_move(blocks, snake):
     blocks[y][x+1].convert_to('head')
     snake.insert(0, blocks[y][x+1])
 
-
-'''
-K_UP      up arrow       0
-K_DOWN    down arrow     1
-K_RIGHT   right arrow    2
-K_LEFT    left arrow     3
-'''
 
 def get_dir(dir):
     if dir == 0: # K_UP
@@ -155,16 +185,17 @@ def move_snake(blocks, snake, dir):
             deleted_body = snake.pop()
             x, y = snake[0].get_index()
             x_index, y_index = x + x_dir, y + y_dir
+            new_head = blocks[y_index][x_index]
             
-            if x_index < 0 or y_index < 0:
+            if x_index < 0 or y_index < 0: # OUT OF BOUNDS
                 game_over = True
                 return
                 
-            if blocks[y_index][x_index].kind == 'food':
-                create_food(blocks, snake, (x_index, y_index))
+            if new_head.kind == 'food':
                 deleted_body.convert_to('body')
                 snake.append(deleted_body)
-            blocks[y_index][x_index].convert_to('head')
+                create_food(blocks, snake, new_head)
+            new_head.convert_to('head')
             snake.insert(0, blocks[y_index][x_index])
     except: # OUT OF BOUNDS EXCEPTION
         print('EXCEPTION')
@@ -178,15 +209,21 @@ def snake_debug(blocks, snake):
                 print ('block_x =', block.x_index, 'block_y =' , block.y_index)
 
 
-def create_food(blocks, snake, head_pos):
+def create_food(blocks, snake, head):
     solved = False
+    iteration = 0
     while not solved:
+        iteration += 1
         x_food = random.randint(0, ROWS - 1)
         y_food = random.randint(0, ROWS - 1)
         proposed_food = blocks[y_food][x_food]
-        if proposed_food.kind == 'blank' and not (x_food == head_pos[0] and y_food == head_pos[1]):
+        print(proposed_food == head)
+        if iteration > 1:
+            print('Solved in %d iterations' % iteration)
+        if proposed_food.kind == 'blank' and proposed_food != head:
             solved = True
-            blocks[y_food][x_food].convert_to('food')
+            proposed_food.convert_to('food')
+            print('food created at x: %d, y: %d' % (x_food, y_food))
     
 
 def draw_grid(win, rows, size, color):
@@ -230,6 +267,7 @@ def get_size(snake):
         counter += 1
     return counter
 
+
 def restart_blocks(blocks):
     for row in blocks:
         for block in row:
@@ -241,7 +279,7 @@ if __name__ == '__main__':
     run = True
     blocks = create_blocks(ROWS, SIZE)
     snake = create_snake(blocks)
-    create_food(blocks, snake, (snake[0].x_index, snake[0].y_index))
+    create_food(blocks, snake, snake[0])
 
     while run:
 
