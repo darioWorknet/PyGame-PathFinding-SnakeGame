@@ -4,16 +4,14 @@ import math
 import time
 import csv
 
-
-
 class Block:
 
     # COLORS
     HEAD = (0, 0, 0)
     BODY = (50, 50, 50)
-    FOOD = (100, 255, 100)
+    FOOD = (141,182,0)
     BLANK = (255, 255, 255)
-    CURRENT = (252,238,167)
+    PATH = (252,238,167)
 
     def __init__(self, size, x_index, y_index):
         self.kind = 'blank'
@@ -37,8 +35,8 @@ class Block:
             self.color = self.FOOD
         elif self.kind == 'blank':
             self.color = self.BLANK
-        elif self.kind == 'current':
-            self.color = self.CURRENT
+        elif self.kind == 'path':
+            self.color = self.PATH
 
     def show(self, win):
         pygame.draw.rect(win, self.color, (self.x, self.y, self.size, self.size))
@@ -81,156 +79,8 @@ class Block:
         return self.cost
 
 
-def listen_key_events(blocks, snake):
-    run = True
-    restart = False
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            run = False
-        elif pygame.mouse.get_pressed()[2]: # RIGHT click
-            snake_move(blocks, snake)
-        elif pygame.mouse.get_pressed()[1]: # CENTER click
-            snake_debug(blocks, snake)
-        elif event.type == pygame.KEYDOWN: 
-            if event.key == pygame.K_UP: # K_UP
-                move_snake(blocks, snake, 0)
 
-            elif event.key == pygame.K_DOWN: # K_DOWN
-                move_snake(blocks, snake, 1)
-
-            elif event.key == pygame.K_RIGHT: # K_RIGHT
-                move_snake(blocks, snake, 2)
-
-            elif event.key == pygame.K_LEFT: # K_LEFT
-                move_snake(blocks, snake, 3)
-
-            elif event.key == pygame.K_RETURN: # ENTER
-                restart = True
-
-            elif event.key == pygame.K_SPACE: # SPACE
-                try:
-                    food = get_food(blocks)
-                    head = snake[0]
-                    path = find_path (blocks, head, food)
-                    move_through_path(blocks, snake, path)
-                except:
-                    pass
-
-    return run, restart
-
-
-def move_through_path(blocks, snake, path):
-    reference = path.pop()
-    x1, y1 = snake[0].get_index()
-    x2, y2 = reference.get_index()
-    if y1-y2 == 1: # UP
-        move_snake(blocks, snake, 0)
-    elif y1-y2 == -1: # DOWN
-        move_snake(blocks, snake, 1)
-    elif x1-x2 == -1: # RIGHT
-        move_snake(blocks, snake, 2)
-    elif x1-x2 == 1: # LEFT
-        move_snake(blocks, snake, 3)
-       
-
-def get_food(blocks):
-    for row in blocks: 
-        for block in row:
-            if block.kind == 'food':
-                x, y = block.get_index()
-                return block
-
-
-def update_costs(blocks, end):
-    for row in blocks:
-        for block in row:
-            block.restart_params()
-            block.set_heuristic(end)
-
-
-def get_path(current, start):
-    path = list()
-    parent = current
-    path.append(parent)
-    solved = False
-    while not solved:
-        parent = parent.parent
-        if parent == start:
-            solved = True
-        else:
-            path.append(parent)
-    # print('path size =', len(path))
-    return path
-
-
-def find_path(blocks, start, end):
-    update_costs(blocks, end)
-    borders = list()
-    visited = list() 
-    borders.append(start)
-    solved = False
-    while not solved:
-        try:
-            current = borders.pop(0)
-        except:
-            # print('not able to solve pathfinding algorithm')
-            return
-        if current == end:
-            solved = True
-            path = get_path(current, start)
-            color_path = [x for x in path if x.kind == 'blank']
-            for i in color_path:
-                i.convert_to('current')
-            return path
-        else: 
-            visited.append(current)
-            childs = current.get_neighbours(blocks)
-            # Probably a try: except: is needed here
-            try:
-                childs = [child for child in childs if child.cost < borders[0].cost and child not in visited and child.kind != 'body']
-            except:
-                childs = [child for child in childs if child not in visited and child.kind != 'body']
-            for child in childs:
-                child.set_cost(current, end)
-                borders.append(child)
-            
-
-def create_blocks(rows, size):
-    blocks = list()
-    for i in range(rows):
-        blocks.append([])
-        for j in range(rows):
-            new_block = Block(size, j, i)
-            blocks[i].append(new_block)
-    return blocks
-
-
-def draw_blocks(win, blocks):
-    for row in blocks:
-        for brick in row:
-            brick.show(win)
-
-
-def create_snake(blocks):
-    snake = list()
-    starting_x = 5
-    starting_y = 3
-    initial_size = 4
-    blocks[starting_y][starting_x].convert_to('head')
-    snake.append(blocks[starting_y][starting_x])
-    for i in range(initial_size):
-        blocks[starting_y][starting_x - 1 - i].convert_to('body')
-        snake.append(blocks[starting_y][starting_x - 1 - i])
-    return snake
-
-
-def snake_move(blocks, snake):
-    snake[0].convert_to('body')
-    snake[-1].convert_to('blank')
-    snake.pop()
-    x, y = snake[0].get_index()
-    blocks[y][x+1].convert_to('head')
-    snake.insert(0, blocks[y][x+1])
+# _______________ GAME FUNCTIONS ___________________#
 
 
 def get_dir(dir):
@@ -252,14 +102,40 @@ def valid_dir(snake, x_dir, y_dir):
         return False
     return True
 
-def get_pos(block):
-    x = block.x_index
-    y = block.y_index
-    return x, y
+
+def move_snake(blocks, snake, dir):
+    x_dir, y_dir = get_dir(dir)
+    if valid_dir(snake, x_dir, y_dir):
+        snake[0].convert_to('body')
+        snake[-1].convert_to('blank')
+        deleted_body = snake.pop()
+        x, y = snake[0].get_index()
+        x_index, y_index = x + x_dir, y + y_dir
+        if x_index >= ROWS or y_index >= ROWS:
+            return
+        new_head = blocks[y_index][x_index]
+
+        new_head.convert_to('head')
+        snake.insert(0, blocks[y_index][x_index])
+
+
+def move_through_path(blocks, snake, path):
+    reference = path.pop()
+    x1, y1 = snake[0].get_index()
+    x2, y2 = reference.get_index()
+    if y1-y2 == 1: # UP
+        move_snake(blocks, snake, 0)
+    elif y1-y2 == -1: # DOWN
+        move_snake(blocks, snake, 1)
+    elif x1-x2 == -1: # RIGHT
+        move_snake(blocks, snake, 2)
+    elif x1-x2 == 1: # LEFT
+        move_snake(blocks, snake, 3)
+
 
 def move_random(blocks, snake):
     neighs = snake[0].get_neighbours(blocks)
-    neighs = [x for x in neighs if x.kind == 'blank' or x.kind == 'current']
+    neighs = [x for x in neighs if x.kind == 'blank' or x.kind == 'path']
     if len(neighs) > 0:
         move_through_path(blocks, snake, neighs)
     else:
@@ -269,37 +145,87 @@ def move_random(blocks, snake):
             if valid_dir(snake, x_dir, y_dir):
                 move_snake(blocks, snake, dir)
                 return
+       
 
-
-def move_snake(blocks, snake, dir):
-    global game_over
-    try:
-        x_dir, y_dir = get_dir(dir)
-        if valid_dir(snake, x_dir, y_dir):
-            snake[0].convert_to('body')
-            snake[-1].convert_to('blank')
-            deleted_body = snake.pop()
-            x, y = snake[0].get_index()
-            x_index, y_index = x + x_dir, y + y_dir
-            new_head = blocks[y_index][x_index]
-            
-            if x_index < 0 or y_index < 0: # OUT OF BOUNDS
-                game_over = True
-                return
-
-            new_head.convert_to('head')
-            snake.insert(0, blocks[y_index][x_index])
-    except: # OUT OF BOUNDS EXCEPTION
-        game_over = True
-        return
-
-
-
-def snake_debug(blocks, snake):
+def update_costs(blocks, end):
     for row in blocks:
         for block in row:
-            if block.kind == 'food':
-                print ('block_x =', block.x_index, 'block_y =' , block.y_index)
+            block.restart_params()
+            block.set_heuristic(end)
+
+
+def get_path(current, start):
+    path = list()
+    path.append(current)
+    solved = False
+    parent = current
+    while not solved:
+        parent = parent.parent
+        if parent == start:
+            solved = True
+        else:
+            path.append(parent)
+    return path
+
+
+def find_path(blocks, start, end):
+    update_costs(blocks, end)
+    borders = list()
+    visited = list() 
+    borders.append(start)
+    solved = False
+    while not solved:
+        try: # GET BEST OPTION
+            current = borders.pop(0)
+        except: # PATH TO FOOD IS BLOCKED
+            return
+        if current == end:
+            solved = True
+            path = get_path(current, start)
+            color_path = [x for x in path if x.kind == 'blank']
+            for i in color_path:
+                i.convert_to('path')
+            return path
+        else: 
+            visited.append(current)
+            childs = current.get_neighbours(blocks)
+
+            try:
+                childs = [child for child in childs if child.cost < borders[0].cost and child not in visited and child.kind != 'body']
+            except:
+                childs = [child for child in childs if child not in visited and child.kind != 'body']
+            for child in childs:
+                child.set_cost(current, end)
+                borders.append(child)
+            
+
+def create_blocks(rows, size):
+    blocks = list()
+    for i in range(rows):
+        blocks.append([])
+        for j in range(rows):
+            new_block = Block(size, j, i)
+            blocks[i].append(new_block)
+    return blocks
+
+
+def draw_blocks(win, blocks):
+    for row in blocks:
+        for block in row:
+            block.show(win)
+
+
+def create_snake(blocks):
+    snake = list()
+    starting_x = 5
+    starting_y = 3
+    initial_size = 4
+    blocks[starting_y][starting_x].convert_to('head')
+    snake.append(blocks[starting_y][starting_x])
+    for i in range(initial_size):
+        blocks[starting_y][starting_x - 1 - i].convert_to('body')
+        snake.append(blocks[starting_y][starting_x - 1 - i])
+    return snake
 
 
 def create_food(blocks, snake, head):
@@ -323,11 +249,11 @@ def draw_grid(win, rows, size, color):
 
 
 def check_game_over(blocks, snake):
-    global game_over
-    head = snake[0]
     for body in snake[1:]:
-        if body == head:
-            game_over = True
+        # If head hits body
+        if body == snake[0]:
+            return True
+    return False
 
 
 def print_text(win, msg, height_pos, font_size):
@@ -344,15 +270,8 @@ def show_game_over(win, score):
     print_text(win, msg, 200, 42)
     msg = 'Your score: ' + str(score)
     print_text(win, msg, 300, 32)
-    msg = 'Try again? Press: ENTER'
+    msg = 'Restarting new game...'
     print_text(win, msg, 400, 32)
-
-
-def get_size(snake):
-    counter = 0
-    for i in snake:
-        counter += 1
-    return counter
 
 
 def restart_blocks(blocks):
@@ -360,12 +279,14 @@ def restart_blocks(blocks):
         for block in row:
             block.convert_to('blank')
 
-def clean_path(blocks):
-    for row in blocks:
-        for block in row:
-            if block.kind == 'current':
+
+def clean_path(path):
+    if path:
+        for block in path:
+            if block.kind == 'path':
                 block.convert_to('blank')
 
+# For output CSV
 def create_dict(my_list):
     dictionary = {}
     for item in  my_list:
@@ -376,42 +297,43 @@ def create_dict(my_list):
     return dictionary
 
 
-
+# GAME CONFIGURATION
 WIDTH = 600
-HEIGHT = 600
-ROWS = 15   # 6, 8, 10, 15
+HEIGHT = WIDTH
+ROWS = 6   # 6, 8, 10, 15
 SIZE = WIDTH // ROWS
-
 GRID_COLOR = (200, 200, 200)
 
+# PYGAME CONFIG.
 pygame.init()
-
 WIN = pygame.display.set_mode(( WIDTH, HEIGHT))
-pygame.display.set_caption("SNAKE A*")
+pygame.display.set_caption("SNAKE A* -- Iteration: 1")
 
-game_over = False
 
 
 if __name__ == '__main__':
-    iter = 0
     run = True
+    game_over = False
     blocks = create_blocks(ROWS, SIZE)
     snake = create_snake(blocks)
     food = create_food(blocks, snake, snake[0])
     path = []
     color_path = []
     game_count = 0
-    game_limit = 3
+    game_limit = 30
     scores = []
 
     while run:
-
-        run, restart = listen_key_events(blocks, snake)
+        # EXIT LISTENER
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                exit()
         draw_blocks(WIN, blocks)
         draw_grid(WIN, ROWS, SIZE, GRID_COLOR)
 
         # MOVE AUTO
-        clean_path(blocks)
+        clean_path(path)
         tail = snake[-1]
 
         if not game_over:
@@ -426,17 +348,17 @@ if __name__ == '__main__':
             else:
                 move_random(blocks, snake)
 
-
-        check_game_over(blocks, snake)
+        game_over = check_game_over(blocks, snake)
 
         if game_over:
-            score = get_size(snake)
+            time.sleep(0.5)
+            score = len(snake)
             show_game_over(WIN, score)
             pygame.display.update()
-            # experimental
-            time.sleep(2)
+            time.sleep(1)
             restart = True
             if restart:
+                pygame.display.set_caption("SNAKE A* -- Iteration: " + str(game_count + 2))
                 restart_blocks(blocks)
                 del snake
                 snake = create_snake(blocks)
@@ -446,6 +368,7 @@ if __name__ == '__main__':
                 scores.append(score)
                 if game_count > game_limit - 1:
                     run = False
+
             pygame.display.update()
 
         time.sleep(0.05)
@@ -453,15 +376,10 @@ if __name__ == '__main__':
     
     scores_dict = create_dict(scores)
     print('scores:', scores_dict)
-    with open('innovators.csv', 'w', newline='') as csv_file:
+    
+    with open('scores.csv', 'w', newline='') as csv_file:
         wr = csv.writer(csv_file, quoting=csv.QUOTE_ALL)
         wr.writerow(scores)
+
     pygame.quit()
     exit()
-
-
-
-
-
-
-    
