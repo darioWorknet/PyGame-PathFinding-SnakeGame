@@ -103,16 +103,27 @@ def valid_dir(snake, x_dir, y_dir):
 
 def move_snake(blocks, snake, dir):
     x_dir, y_dir = get_dir(dir)
+    # If snake doesn't want to turn backwards
     if valid_dir(snake, x_dir, y_dir):
-        snake[0].convert_to('body')
-        snake[-1].convert_to('blank')
         x, y = snake[0].get_index()
         x_index, y_index = x + x_dir, y + y_dir
-        if x_index >= ROWS or y_index >= ROWS:
-            return
         new_head = blocks[y_index][x_index]
-        new_head.convert_to('head')
-        snake.insert(0, new_head)
+        # If out of bounds 
+        if x_index >= ROWS or y_index >= ROWS or x_index < 0 or y_index < 0:
+            game_over = True
+            return game_over
+        # If clash with body
+        elif new_head.kind == 'body':
+            game_over = True
+            return game_over
+        else:
+            snake[0].convert_to('body')
+            tail = snake.pop()
+            tail.convert_to('blank')
+            new_head.convert_to('head')
+            snake.insert(0, new_head)
+            game_over = False
+            return game_over
 
 
 def move_through_path(blocks, snake, path):
@@ -120,27 +131,29 @@ def move_through_path(blocks, snake, path):
     x1, y1 = snake[0].get_index()
     x2, y2 = reference.get_index()
     if y1-y2 == 1: # UP
-        move_snake(blocks, snake, 0)
+        return move_snake(blocks, snake, 0)
     elif y1-y2 == -1: # DOWN
-        move_snake(blocks, snake, 1)
+        return move_snake(blocks, snake, 1)
     elif x1-x2 == -1: # RIGHT
-        move_snake(blocks, snake, 2)
+        return move_snake(blocks, snake, 2)
     elif x1-x2 == 1: # LEFT
-        move_snake(blocks, snake, 3)
+        return move_snake(blocks, snake, 3)
 
 
 def move_random(blocks, snake):
     neighs = snake[0].get_neighbours(blocks)
     neighs = [x for x in neighs if x.kind == 'blank' or x.kind == 'path']
     if len(neighs) > 0:
-        move_through_path(blocks, snake, neighs)
+        random.shuffle(neighs)
+        game_over = move_through_path(blocks, snake, neighs)
+        return game_over
     else:
         while True:
             dir = random.randint(0,3)
             x_dir, y_dir = get_dir(dir)
             if valid_dir(snake, x_dir, y_dir):
-                move_snake(blocks, snake, dir)
-                return
+                game_over = move_snake(blocks, snake, dir)
+                return game_over
        
 # SET ACCUMULATED COST TO ZERO AND UPDATE HEURISTICS FOR EACH BLOCK
 def update_costs(blocks, end):
@@ -178,6 +191,7 @@ def find_path(blocks, start, end):
         if current == end:
             solved = True
             path = get_path(current, start)
+            # COLORIZE PATH
             color_path = [x for x in path if x.kind == 'blank']
             for i in color_path:
                 i.convert_to('path')
@@ -244,14 +258,6 @@ def draw_grid(win, rows, size, color):
         pygame.draw.line(win, color, (0 ,y), (WIDTH, y), 2)
 
 
-def check_game_over(blocks, snake):
-    for body in snake[1:]:
-        # If head hits body
-        if body == snake[0]:
-            return True
-    return False
-
-
 def print_text(win, msg, height_pos, font_size):
     font = pygame.font.Font('freesansbold.ttf', font_size)
     text = font.render(msg, False, (255, 100, 255))
@@ -315,8 +321,9 @@ if __name__ == '__main__':
     color_path = []
     scores = []
 
+    game_slow = True # Activate some time.sleep() functions
     game_count = 0
-    game_limit = 2 # How many games?
+    game_limit = 2 # How many games do you want to be played?
 
     while run:
         # EXIT LISTENER
@@ -325,34 +332,40 @@ if __name__ == '__main__':
                 pygame.quit()
                 exit()
 
-        # DRAW BOARD
-        draw_blocks(WIN, blocks)
-        draw_grid(WIN, ROWS, SIZE, GRID_COLOR)
-
-        # MOVE AUTO
-        clean_path(path)
-        tail = snake[-1]
-
         if not game_over:
+
+            # MOVE SNAKE AND CHECK IF GAME IS OVER
+            clean_path(path) # Delete old path, new one is to be created
+            tail = snake[-1]
+            path = find_path (blocks, snake[0], food)
+            if path: # if path has been found
+                game_over = move_through_path(blocks, snake, path)
+            else:
+                game_over = move_random(blocks, snake)
+
+            # IF FOOD EATEN
             if food == snake[0]:
+                # SNAKE GROWS
                 tail.convert_to('body')
                 snake.append(tail)
                 food = create_food(blocks, snake)
-            pygame.display.update()
-            path = find_path (blocks, snake[0], food)
-            if path:
-                move_through_path(blocks, snake, path)
-            else:
-                move_random(blocks, snake)
 
-        game_over = check_game_over(blocks, snake)
+            # DRAW BOARD
+            draw_blocks(WIN, blocks)
+            draw_grid(WIN, ROWS, SIZE, GRID_COLOR)
+
+            # UPDATE SCREEN
+            pygame.display.update()
+            
 
         if game_over:
-            # time.sleep(0.5)
+            if game_slow: # TO SHOW HOW THE SNAKE HAS DIED
+                time.sleep(0.5)
             score = len(snake)
             show_game_over(WIN, score)
             pygame.display.update()
-            # time.sleep(1)
+            if game_slow: # TO SHOW RESULT
+                time.sleep(1)
             restart = True
             if restart:
                 game_count += 1
@@ -363,13 +376,14 @@ if __name__ == '__main__':
                 food = create_food(blocks, snake)
                 game_over = False
                 scores.append(score)
-                # EXIT GAME, WHEN DESIRED GAMES HAVE BEEN PLAYED
+                # EXIT GAME, WHEN STATED AMMOUNT OF GAMES HAVE BEEN PLAYED
                 if game_count > game_limit - 1:
                     run = False
 
             pygame.display.update()
 
-        # time.sleep(0.05)
+        if game_slow:
+            time.sleep(0.05)
         pygame.display.update()
     
     # CREATE CSV & STORE SCORES

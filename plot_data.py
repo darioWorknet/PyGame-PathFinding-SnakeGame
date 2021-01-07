@@ -10,6 +10,8 @@ file_name = 'scores_5000_15.csv'
 df = pd.read_csv(os.path.join(main_path, file_name))
 
 # PLOT DATAFRAME
-plt.figure(figsize=(16,8))
+plt.figure(figsize=(10,6))
 plt.hist(df, bins=30)
+plt.xlabel('Score')
+plt.ylabel('Frecuency')
 plt.show()
