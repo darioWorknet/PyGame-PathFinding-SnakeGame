@@ -5,7 +5,6 @@ import time
 import csv
 
 class Block:
-
     # COLORS
     HEAD = (0, 0, 0)
     BODY = (50, 50, 50)
@@ -82,15 +81,14 @@ class Block:
 
 # _______________ GAME FUNCTIONS ___________________#
 
-
 def get_dir(dir):
-    if dir == 0: # K_UP
+    if dir == 0: # UP
         return 0, -1
-    elif dir == 1: # K_DOWN
+    elif dir == 1: # DOWN
         return 0, 1
-    elif dir == 2: # K_RIGHT
+    elif dir == 2: # RIGHT
         return 1, 0
-    elif dir == 3: # K_LEFT
+    elif dir == 3: # LEFT
         return -1, 0
 
 
@@ -108,15 +106,13 @@ def move_snake(blocks, snake, dir):
     if valid_dir(snake, x_dir, y_dir):
         snake[0].convert_to('body')
         snake[-1].convert_to('blank')
-        deleted_body = snake.pop()
         x, y = snake[0].get_index()
         x_index, y_index = x + x_dir, y + y_dir
         if x_index >= ROWS or y_index >= ROWS:
             return
         new_head = blocks[y_index][x_index]
-
         new_head.convert_to('head')
-        snake.insert(0, blocks[y_index][x_index])
+        snake.insert(0, new_head)
 
 
 def move_through_path(blocks, snake, path):
@@ -146,14 +142,14 @@ def move_random(blocks, snake):
                 move_snake(blocks, snake, dir)
                 return
        
-
+# SET ACCUMULATED COST TO ZERO AND UPDATE HEURISTICS FOR EACH BLOCK
 def update_costs(blocks, end):
     for row in blocks:
         for block in row:
             block.restart_params()
             block.set_heuristic(end)
 
-
+# WHEN PATH HAS BEEN FOUND, IT RETURNS THE PATH
 def get_path(current, start):
     path = list()
     path.append(current)
@@ -167,7 +163,7 @@ def get_path(current, start):
             path.append(parent)
     return path
 
-
+# A* PATHFINDING ALGORITHM
 def find_path(blocks, start, end):
     update_costs(blocks, end)
     borders = list()
@@ -228,11 +224,11 @@ def create_snake(blocks):
     return snake
 
 
-def create_food(blocks, snake, head):
+def create_food(blocks, snake):
     valid_positions = list()
     for rows in blocks:
         for block in rows:
-            if block.kind != 'head' and block.kind != 'body':
+            if block not in snake:
                 valid_positions.append(block)
     proposed_food = random.choice(valid_positions)
     proposed_food.convert_to('food')
@@ -286,25 +282,23 @@ def clean_path(path):
             if block.kind == 'path':
                 block.convert_to('blank')
 
-# For output CSV
-def create_dict(my_list):
-    dictionary = {}
-    for item in  my_list:
-        if item in dictionary:
-            dictionary[item] =+ 1
-        else:
-            dictionary[item] = 1
-    return dictionary
+
+def create_CSV(filename, scores):
+    with open(filename, 'w', newline='') as csv_file:
+        wr = csv.writer(csv_file)
+        wr.writerow(['Scores'])
+        for score in scores:
+            wr.writerow([score])
 
 
-# GAME CONFIGURATION
+# GAME CONFIGURATION ____________________________________
 WIDTH = 600
 HEIGHT = WIDTH
-ROWS = 6   # 6, 8, 10, 15
+ROWS = 15   # 6, 8, 10, 15
 SIZE = WIDTH // ROWS
 GRID_COLOR = (200, 200, 200)
 
-# PYGAME CONFIG.
+# PYGAME CONFIG. ________________________________________
 pygame.init()
 WIN = pygame.display.set_mode(( WIDTH, HEIGHT))
 pygame.display.set_caption("SNAKE A* -- Iteration: 1")
@@ -316,12 +310,13 @@ if __name__ == '__main__':
     game_over = False
     blocks = create_blocks(ROWS, SIZE)
     snake = create_snake(blocks)
-    food = create_food(blocks, snake, snake[0])
+    food = create_food(blocks, snake)
     path = []
     color_path = []
-    game_count = 0
-    game_limit = 30
     scores = []
+
+    game_count = 0
+    game_limit = 2 # How many games?
 
     while run:
         # EXIT LISTENER
@@ -329,6 +324,8 @@ if __name__ == '__main__':
             if event.type == pygame.QUIT:
                 pygame.quit()
                 exit()
+
+        # DRAW BOARD
         draw_blocks(WIN, blocks)
         draw_grid(WIN, ROWS, SIZE, GRID_COLOR)
 
@@ -340,7 +337,7 @@ if __name__ == '__main__':
             if food == snake[0]:
                 tail.convert_to('body')
                 snake.append(tail)
-                food = create_food(blocks, snake, snake[0])
+                food = create_food(blocks, snake)
             pygame.display.update()
             path = find_path (blocks, snake[0], food)
             if path:
@@ -351,35 +348,35 @@ if __name__ == '__main__':
         game_over = check_game_over(blocks, snake)
 
         if game_over:
-            time.sleep(0.5)
+            # time.sleep(0.5)
             score = len(snake)
             show_game_over(WIN, score)
             pygame.display.update()
-            time.sleep(1)
+            # time.sleep(1)
             restart = True
             if restart:
-                pygame.display.set_caption("SNAKE A* -- Iteration: " + str(game_count + 2))
+                game_count += 1
+                pygame.display.set_caption("SNAKE A* -- Iteration: " + str(game_count + 1))
                 restart_blocks(blocks)
                 del snake
                 snake = create_snake(blocks)
-                food = create_food(blocks, snake, (snake[0].x_index, snake[0].y_index))
+                food = create_food(blocks, snake)
                 game_over = False
-                game_count += 1
                 scores.append(score)
+                # EXIT GAME, WHEN DESIRED GAMES HAVE BEEN PLAYED
                 if game_count > game_limit - 1:
                     run = False
 
             pygame.display.update()
 
-        time.sleep(0.05)
+        # time.sleep(0.05)
         pygame.display.update()
     
-    scores_dict = create_dict(scores)
-    print('scores:', scores_dict)
-    
-    with open('scores.csv', 'w', newline='') as csv_file:
-        wr = csv.writer(csv_file, quoting=csv.QUOTE_ALL)
-        wr.writerow(scores)
+    # CREATE CSV & STORE SCORES
+    filename = 'scores.csv'
+    create_CSV(filename, scores)
 
+    # EXIT PYGAME
     pygame.quit()
     exit()
+
